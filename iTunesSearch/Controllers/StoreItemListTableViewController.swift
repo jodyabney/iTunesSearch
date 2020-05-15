@@ -7,8 +7,9 @@ class StoreItemListTableViewController: UITableViewController {
     @IBOutlet var filterSegmentedControl: UISegmentedControl!
     
     // add item controller property
+    var storeItemController = StoreItemController()
     
-    var items = [String]()
+    var items = [StoreItem?]()
     
     let queryOptions = ["movie", "music", "software", "ebook"]
     
@@ -28,10 +29,27 @@ class StoreItemListTableViewController: UITableViewController {
         if !searchTerm.isEmpty {
             
             // set up query dictionary
+            let query: [String: String] = [
+                "term": searchTerm,
+                "media": mediaType,
+                "lang": "en_us"
+            ]
+            
             
             // use the item controller to fetch items
-            // if successful, use the main queue to set self.items and reload the table view
-            // otherwise, print an error to the console
+            storeItemController.fetchItems(matching: query) { (storeItems) in
+                // if successful, use the main queue to set self.items and reload the table view
+                if let storeItems = storeItems {
+                    self.items = storeItems
+                    self.tableView.reloadData()
+                    
+                } else {
+                    // otherwise, print an error to the console
+                    print("No items availble!")
+                }
+            }
+            
+            
         }
     }
     
@@ -39,15 +57,29 @@ class StoreItemListTableViewController: UITableViewController {
         
         let item = items[indexPath.row]
         
-        cell.textLabel?.text = item
+        
         
         // set label to the item's name
+        cell.textLabel?.text = item?.name
         // set detail label to the item's subtitle
+        cell.detailTextLabel?.text = item?.artist
         // reset the image view to the gray image
+        cell.imageView?.image = UIImage(named: "gray")
         
         // initialize a network task to fetch the item's artwork
-        // if successful, use the main queue capture the cell, to initialize a UIImage, and set the cell's image view's image to the 
+        let task = URLSession.shared.dataTask(with: item!.artworkURL, completionHandler: { (data, response, error) in
+            
+            guard let data = data, let image = UIImage(data: data) else { return }
+            
+            // if successful, use the main queue capture the cell, to initialize a UIImage, and set the cell's image view's image to the
+            
+            DispatchQueue.main.async {
+                cell.imageView?.image = image
+            }
+        })
+         
         // resume the task
+        task.resume()
     }
     
     @IBAction func filterOptionUpdated(_ sender: UISegmentedControl) {
@@ -56,17 +88,17 @@ class StoreItemListTableViewController: UITableViewController {
     }
     
     // MARK: - Table view data source
-
+    
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-
+        
         return items.count
     }
-
+    
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
         let cell = tableView.dequeueReusableCell(withIdentifier: "itemCell", for: indexPath)
         configure(cell: cell, forItemAt: indexPath)
-
+        
         return cell
     }
     
@@ -79,7 +111,7 @@ class StoreItemListTableViewController: UITableViewController {
 }
 
 extension StoreItemListTableViewController: UISearchBarDelegate {
-
+    
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
         
         fetchMatchingItems()
